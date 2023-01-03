@@ -1,18 +1,24 @@
 from typing import List, Tuple
 
 import logging
-import torch
+import random
 
-import torch.nn as nn
 import numpy as np
 
 
 from tetris_app import TetrisApp, rotate_clockwise, check_collision
 
+
 class TetrisAgent():
     def __init__(self, tetrisApp: TetrisApp, ):
         self.tetrisApp = tetrisApp
-        self.weights = np.array([1, 1, 10, 10, -50]) # chromosome
+        self.generation_id = 1
+        self.generation_size = 15
+        self.current_id = 0
+        self.weights = (np.random.rand(self.generation_size, 5) - 0.5) * 20
+        self.fitness = []
+        self.mutation_coefficient = 0.5
+
 
     def get_height_difference(self, board: np.ndarray) -> int:
         """ Returns sum of absolute height differences between each column """
@@ -39,7 +45,7 @@ class TetrisAgent():
     def get_max_height_difference(self, board: np.ndarray) -> int:
         """ Returns max absolute height difference between columns """
         heights = (board != 0).argmax(axis=0)
-        return np.amax(np.abs(np.diff(heights)))
+        return np.amax(heights) - np.amin(heights)
 
 
     def get_board_parameters(self, board) -> np.ndarray:
@@ -102,7 +108,7 @@ class TetrisAgent():
         input_layer = self.get_board_parameters(board)
         input_layer = np.append(input_layer, [rows_cleared])
         
-        return np.matmul(input_layer, self.weights)
+        return np.matmul(input_layer, self.weights[self.current_id])
 
     def find_optimal_move(self) -> Tuple[int, int]:
         min_value = 1e9
@@ -131,11 +137,68 @@ class TetrisAgent():
         moves.append('DOWN')
         self.tetrisApp.add_actions(moves)
 
+
+    def mutate(self, id):
+        for i in range(len(self.weights[id])):
+            if random.random() < id/self.generation_size:
+                self.weights[id][i] += np.random.normal() * (i*self.mutation_coefficient)
+
+
+    def crossover(self, i, keep_id):
+        parent1 = random.randint(0, keep_id)
+        while (parent2 := random.randint(0, keep_id)) == parent1:
+            pass
+        
+        for j in range(len(self.weights[i])):
+            if random.random() < 0.5:
+                self.weights[i][j] = self.weights[parent1][j]
+            else:
+                self.weights[i][j] = self.weights[parent2][j]
+
+    def create_next_generation(self):
+        self.fitness = sorted(self.fitness, reverse=True)
+        logging.info(f"Generation: {self.generation_id}")
+        logging.info(self.weights)
+        weights = self.weights
+        for i in range(len(self.weights)):
+            weights[i] = self.weights[self.fitness[i][1]]
+        self.weights = weights
+        logging.info(self.weights)
+        logging.info(self.fitness)
+        
+        keep_id = np.ceil(0.2*self.generation_size).astype(int)
+        for i in range(keep_id+1, self.generation_size):
+            self.crossover(i, keep_id)
+
+        logging.info(f"Weights after parenting: {self.weights}")
+        for i in range(self.generation_size):
+            if random.random() < i/self.generation_size:
+                self.mutate(i)
+
+        logging.info(f"Weights after mutating: {self.weights}")
+
+        self.generation_id += 1
+        self.current_id = 0
+        self.fitness = []
+        self.tetrisApp.add_actions(["SPACE"])
+
+
     def start(self):
         self.tetrisApp.init()
 
         while(1):
             self.state = self.tetrisApp.get_state()
+
+            if self.state["gameover"] and not self.tetrisApp.actions:
+                self.fitness.append((self.state["score"], self.current_id))
+                self.current_id += 1
+                logging.info(self.fitness)
+                if self.current_id < self.generation_size:
+                    self.tetrisApp.add_actions(["SPACE"])
+                else:
+                    self.create_next_generation()
+
+
             if not self.state["gameover"] and not self.tetrisApp.actions:
                 optimal_move = self.find_optimal_move()
                 self.play_move(optimal_move)
