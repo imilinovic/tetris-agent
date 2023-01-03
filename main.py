@@ -1,15 +1,18 @@
 from typing import List, Tuple
-import logging
 
+import logging
+import torch
+
+import torch.nn as nn
 import numpy as np
 
 
 from tetris_app import TetrisApp, rotate_clockwise, check_collision
 
 class TetrisAgent():
-    def __init__(self, tetrisApp: TetrisApp):
+    def __init__(self, tetrisApp: TetrisApp, ):
         self.tetrisApp = tetrisApp
-
+        self.weights = np.array([1, 1, 10, 10, -50]) # chromosome
 
     def get_height_difference(self, board: np.ndarray) -> int:
         """ Returns sum of absolute height differences between each column """
@@ -33,12 +36,19 @@ class TetrisAgent():
         return sum
 
 
-    def get_board_parameters(self, board) -> List[int]:
-        return [
+    def get_max_height_difference(self, board: np.ndarray) -> int:
+        """ Returns max absolute height difference between columns """
+        heights = (board != 0).argmax(axis=0)
+        return np.amax(np.abs(np.diff(heights)))
+
+
+    def get_board_parameters(self, board) -> np.ndarray:
+        return np.array([
             self.get_height_difference(board),
             self.get_total_height(board),
             self.get_number_of_holes(board),
-        ]
+            self.get_max_height_difference(board),
+        ])
 
 
     def simulate_move(self, column: int, rotation_cnt: int) -> np.ndarray:
@@ -86,14 +96,13 @@ class TetrisAgent():
 
     def evaluate_move(self, column: int, rotation_cnt: int) -> float:
         if (board := self.simulate_move(column, rotation_cnt)) is None:
-            return 0
+            return 1e9
 
         rows_cleared = self.clean_board(board)
-        if rows_cleared > 0:
-            parameters = self.get_board_parameters(board)
-            logging.info(rows_cleared, parameters)
-
-        return 0
+        input_layer = self.get_board_parameters(board)
+        input_layer = np.append(input_layer, [rows_cleared])
+        
+        return np.matmul(input_layer, self.weights)
 
     def find_optimal_move(self) -> Tuple[int, int]:
         min_value = 1e9
@@ -106,33 +115,31 @@ class TetrisAgent():
                     move = (column, rotation_cnt)
 
         return move
-        
+    
+
+    def play_move(self, move: Tuple[int, int]):
+        moves = []
+        for _ in range(move[1]):
+            moves.append('UP')
+        stone_x = self.state['stone_x']
+        if stone_x - move[0] > 0:
+            for _ in range(stone_x - move[0]):
+                moves.append('LEFT')
+        else:
+            for _ in range(move[0] - stone_x):
+                moves.append('RIGHT')
+        moves.append('DOWN')
+        self.tetrisApp.add_actions(moves)
 
     def start(self):
         self.tetrisApp.init()
 
         while(1):
-            #sleep(1)            
             self.state = self.tetrisApp.get_state()
-            optimal_move = self.find_optimal_move()
+            if not self.state["gameover"] and not self.tetrisApp.actions:
+                optimal_move = self.find_optimal_move()
+                self.play_move(optimal_move)
 
-            """
-            if not state["gameover"] and not self.tetrisApp.actions:
-                print(state)
-                print(self.tetrisApp.actions)
-                actions = []
-                if randint(1, 2) % 2:
-                    for i in range (randint(1, 6)):
-                        actions.append('LEFT')
-                    actions.append('DOWN')
-                else:
-                    if randint(1, 2) % 2:
-                        for i in range (randint(1, 6)):
-                            actions.append('RIGHT')
-                        actions.append('DOWN')
-
-                self.tetrisApp.add_actions(actions)
-            """
             self.tetrisApp.tick()
             
 
