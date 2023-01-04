@@ -16,6 +16,9 @@ class TetrisAgent():
         self.generation_id = 1
         self.generation_size = 15
         self.current_id = 0
+        self.current_run = 0
+        self.current_run_score_sum = 0
+        self.runs_per_chromosome = 3
         self.weights = (np.random.rand(self.generation_size, 5) - 0.5) * 20
         self.fitness = []
         self.mutation_coefficient = 1
@@ -190,7 +193,6 @@ class TetrisAgent():
         self.generation_id += 1
         self.current_id = 0
         self.fitness = []
-        self.tetrisApp.add_actions(["SPACE"])
 
 
     def start(self):
@@ -201,13 +203,19 @@ class TetrisAgent():
             self.state = self.tetrisApp.get_state()
             #print(self.state, self.tetrisApp.actions)
             if self.state["gameover"] and not self.tetrisApp.actions:
-                self.fitness.append((self.state["score"], self.current_id))
-                self.current_id += 1
-                logging.info(self.fitness)
-                if self.current_id < self.generation_size:
-                    self.tetrisApp.add_actions(["SPACE"])
-                else:
+                self.current_run += 1
+                self.current_run_score_sum += self.state["score"]
+
+                if self.current_run == self.runs_per_chromosome:
+                    self.fitness.append((self.current_run_score_sum/self.runs_per_chromosome, self.current_id))
+                    self.current_id += 1
+                    self.current_run = 0
+                    self.current_run_score_sum = 0
+                    logging.info(self.fitness)
+
+                if self.current_id == self.generation_size:
                     self.create_next_generation()
+                self.tetrisApp.add_actions(["SPACE"])
             elif not self.state["gameover"] and not self.tetrisApp.actions:
                 self.tetrisApp.tick()
                 optimal_move = self.find_optimal_move()
