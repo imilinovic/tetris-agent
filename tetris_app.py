@@ -246,18 +246,12 @@ class TetrisApp(object):
     ''' 
     def dropFast(self):
         if not self.gameover and not self.paused:
-            while True:
+            while not check_collision(self.board, self.stone, (self.stone_x, self.stone_y+1)):
                 self.stone_y += 1
-                if check_collision(self.board,
-                                self.stone,
-                                (self.stone_x, self.stone_y)):
-                    self.board = join_matrixes(
-                        self.board,
-                        self.stone,
-                        (self.stone_x, self.stone_y))
-                    self.new_stone()
-                    self.needs_actions = True
-                    break
+            self.board = join_matrixes(self.board, self.stone, (self.stone_x, self.stone_y+1))
+            self.new_stone()
+            self.needs_actions = True
+
             while True:
                     for i, row in enumerate(self.board[:-1]):
                         if 0 not in row:

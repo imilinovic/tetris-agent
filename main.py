@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 import logging
 import random
+import time
 
 import numpy as np
 
@@ -17,55 +18,63 @@ class TetrisAgent():
         self.current_id = 0
         self.weights = (np.random.rand(self.generation_size, 5) - 0.5) * 20
         self.fitness = []
-        self.mutation_coefficient = 0.5
+        self.mutation_coefficient = 1
 
 
-    def get_height_difference(self, board: np.ndarray) -> int:
+    def get_height_difference(self, board: np.ndarray, debug=False) -> int:
         """ Returns sum of absolute height differences between each column """
         heights = (board != 0).argmax(axis=0)
         return np.sum(np.abs(np.diff(heights)))
 
 
-    def get_total_height(self, board: np.ndarray) -> int:
+    def get_total_height(self, board: np.ndarray, debug=False) -> int:
         """ Returns total sum of column heights """
         heights = (board != 0).argmax(axis=0)
         return np.sum(board.shape[0] - 1 - heights)
 
 
-    def get_number_of_holes(self, board: np.ndarray) -> int:
+    def get_number_of_holes(self, board: np.ndarray, debug=False) -> int:
         """ Hole is defined as empty cell lower than column height """
         heights = (board != 0).argmax(axis=0)
         empty = (board == 0)
+        if debug:
+            logging.info(heights)
+            logging.info(empty)
         sum = 0
         for column in range(board.shape[1]):
             sum += np.sum(empty[heights[column]:, column], axis=0)
         return sum
 
 
-    def get_max_height_difference(self, board: np.ndarray) -> int:
+    def get_max_height_difference(self, board: np.ndarray, debug=False) -> int:
         """ Returns max absolute height difference between columns """
         heights = (board != 0).argmax(axis=0)
+        if debug:
+            print(heights)
         return np.amax(heights) - np.amin(heights)
 
 
-    def get_board_parameters(self, board) -> np.ndarray:
+    def get_board_parameters(self, board, debug=False) -> np.ndarray:
         return np.array([
-            self.get_height_difference(board),
-            self.get_total_height(board),
-            self.get_number_of_holes(board),
-            self.get_max_height_difference(board),
+            self.get_height_difference(board, debug),
+            self.get_total_height(board, debug),
+            self.get_number_of_holes(board, debug),
+            self.get_max_height_difference(board, debug),
         ])
 
 
     def simulate_move(self, column: int, rotation_cnt: int) -> np.ndarray:
         stone = self.state['stone']
-        if check_collision(self.state['board'], stone, (column, 0)):
+        if check_collision(self.state['board'], stone, (self.state['stone_x'], self.state['stone_y'])):
             return None # unable to rotate stone
 
         for i in range(rotation_cnt):
             stone = rotate_clockwise(stone)
-            if check_collision(self.state['board'], stone, (column, 0)):
+            if check_collision(self.state['board'], stone, (self.state['stone_x'], self.state['stone_y'])):
                return None # unable to rotate stone
+
+        if check_collision(self.state['board'], stone, (column, 0)):
+            return None # unable to go there with rotated stone
 
         stone = np.array(stone)
         board = np.copy(self.state['board'])
@@ -139,9 +148,11 @@ class TetrisAgent():
 
 
     def mutate(self, id):
-        for i in range(len(self.weights[id])):
-            if random.random() < id/self.generation_size:
-                self.weights[id][i] += np.random.normal() * (i*self.mutation_coefficient)
+        how_many = random.randint(1, 5)
+        which = random.sample(range(0, 5), how_many)
+
+        for idx in which:
+            self.weights[id][idx] += np.random.normal() * (id*self.mutation_coefficient)
 
 
     def crossover(self, i, keep_id):
@@ -158,7 +169,6 @@ class TetrisAgent():
     def create_next_generation(self):
         self.fitness = sorted(self.fitness, reverse=True)
         logging.info(f"Generation: {self.generation_id}")
-        logging.info(self.weights)
         weights = self.weights
         for i in range(len(self.weights)):
             weights[i] = self.weights[self.fitness[i][1]]
@@ -171,7 +181,7 @@ class TetrisAgent():
             self.crossover(i, keep_id)
 
         logging.info(f"Weights after parenting: {self.weights}")
-        for i in range(self.generation_size):
+        for i in range(keep_id+1, self.generation_size):
             if random.random() < i/self.generation_size:
                 self.mutate(i)
 
@@ -187,8 +197,9 @@ class TetrisAgent():
         self.tetrisApp.init()
 
         while(1):
+            
             self.state = self.tetrisApp.get_state()
-
+            #print(self.state, self.tetrisApp.actions)
             if self.state["gameover"] and not self.tetrisApp.actions:
                 self.fitness.append((self.state["score"], self.current_id))
                 self.current_id += 1
@@ -197,14 +208,13 @@ class TetrisAgent():
                     self.tetrisApp.add_actions(["SPACE"])
                 else:
                     self.create_next_generation()
-
-
-            if not self.state["gameover"] and not self.tetrisApp.actions:
+            elif not self.state["gameover"] and not self.tetrisApp.actions:
+                self.tetrisApp.tick()
                 optimal_move = self.find_optimal_move()
                 self.play_move(optimal_move)
-
-            self.tetrisApp.tick()
             
+            self.tetrisApp.tick()
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
