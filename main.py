@@ -8,7 +8,7 @@ import numpy as np
 
 
 from tetris_app import TetrisApp, rotate_clockwise, check_collision
-
+from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
     def __init__(self, tetrisApp: TetrisApp, ):
@@ -226,6 +226,6 @@ class TetrisAgent():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    app = TetrisApp()
+    app = TetrisAppNoGUI()
     agent = TetrisAgent(app)
     agent.start()
