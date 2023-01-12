@@ -16,18 +16,19 @@ class TetrisAgent():
         self.tetrisApp = tetrisApp
         self.generation_id = 1
         self.generation_size = 50
+        self.best_fitness = 0
         self.current_id = 0
         self.current_run = 0
         self.current_run_score_sum = 0
         self.runs_per_chromosome = 3
-        self.weights = (np.random.rand(self.generation_size, 5) - 0.5)
+        self.weights = (np.random.rand(self.generation_size, 8) - 0.5)
         #self.weights[0] = [1.38049889,-3.1927763,9.43484846,0.00224655,-2.98497962]
         self.fitness = []
         self.mutation_coefficient = 0.01
 
 
     def get_height_difference(self, board: np.ndarray, debug=False) -> int:
-        """ Returns sum of absolute height differences between each column """
+        """ Returns sum of absolute height differences between each neighbor column """
         heights = (board != 0).argmax(axis=0)
         return np.sum(np.abs(np.diff(heights)))
 
@@ -51,6 +52,29 @@ class TetrisAgent():
         return sum
 
 
+    def get_square_of_number_of_holes(self, board: np.ndarray, debug=False) -> int:
+        """ Returns square of number of holes """
+        holes = self.get_number_of_holes(board, debug)
+        return np.square(holes)
+
+
+    def get_number_of_columns_with_holes(self, board: np.ndarray, debug=False) -> int:
+        """
+        Returns number of columns with at least one hole
+        Hole is defined as empty cell lower than column height
+        """
+        heights = (board != 0).argmax(axis=0)
+        empty = (board == 0)
+        if debug:
+            logging.info(heights)
+            logging.info(empty)
+        sum = 0
+        for column in range(board.shape[1]):
+            if np.sum(empty[heights[column]:, column], axis=0) > 0:
+                sum += 1
+        return sum
+
+
     def get_max_height_difference(self, board: np.ndarray, debug=False) -> int:
         """ Returns max absolute height difference between columns """
         heights = (board != 0).argmax(axis=0)
@@ -59,12 +83,22 @@ class TetrisAgent():
         return np.amax(heights) - np.amin(heights)
 
 
+    def get_mul_hole_height_diff(self, board: np.ndarray, debug=False) -> int:
+        """ Returns product of number of holes and sum of absolute height differences between each neighbor column """
+        holes = self.get_number_of_holes(board, debug)
+        height = self.get_height_difference(board, debug)
+        return np.multiply(holes, height)
+
+
     def get_board_parameters(self, board, debug=False) -> np.ndarray:
         return np.array([
             self.get_height_difference(board, debug),
             self.get_total_height(board, debug),
             self.get_number_of_holes(board, debug),
+            self.get_square_of_number_of_holes(board, debug),
+            self.get_number_of_columns_with_holes(board, debug),
             self.get_max_height_difference(board, debug),
+            self.get_mul_hole_height_diff(board, debug),
         ])
 
 
@@ -177,7 +211,8 @@ class TetrisAgent():
 
     def create_next_generation(self):
         self.fitness = sorted(self.fitness, reverse=True)
-        logging.info(f"Generation: {self.generation_id}")
+        logging.info(f"\n\n\nGeneration: {self.generation_id}")
+        logging.info(f"Best fitness: {self.best_fitness}")
         weights = self.weights
         for i in range(len(self.weights)):
             weights[i] = self.weights[self.fitness[i][1]]
@@ -214,6 +249,8 @@ class TetrisAgent():
 
                 if self.current_run == self.runs_per_chromosome:
                     self.fitness.append((self.current_run_score_sum/self.runs_per_chromosome, self.current_id))
+                    if self.current_run_score_sum/self.runs_per_chromosome > self.best_fitness:
+                        self.best_fitness = self.current_run_score_sum/self.runs_per_chromosome
                     self.current_id += 1
                     self.current_run = 0
                     self.current_run_score_sum = 0
