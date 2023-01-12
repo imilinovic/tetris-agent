@@ -12,16 +12,18 @@ from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
     def __init__(self, tetrisApp: TetrisApp, ):
+        np.set_printoptions(suppress=True)
         self.tetrisApp = tetrisApp
         self.generation_id = 1
-        self.generation_size = 15
+        self.generation_size = 50
         self.current_id = 0
         self.current_run = 0
         self.current_run_score_sum = 0
         self.runs_per_chromosome = 3
-        self.weights = (np.random.rand(self.generation_size, 5) - 0.5) * 20
+        self.weights = (np.random.rand(self.generation_size, 5) - 0.5)
+        #self.weights[0] = [1.38049889,-3.1927763,9.43484846,0.00224655,-2.98497962]
         self.fitness = []
-        self.mutation_coefficient = 1
+        self.mutation_coefficient = 0.01
 
 
     def get_height_difference(self, board: np.ndarray, debug=False) -> int:
@@ -118,7 +120,7 @@ class TetrisAgent():
 
         rows_cleared = self.clean_board(board)
         input_layer = self.get_board_parameters(board)
-        input_layer = np.append(input_layer, [rows_cleared])
+        input_layer = np.append(input_layer, [rows_cleared*100])
         
         return np.matmul(input_layer, self.weights[self.current_id])
 
@@ -158,9 +160,13 @@ class TetrisAgent():
             self.weights[id][idx] += np.random.normal() * (id*self.mutation_coefficient)
 
 
-    def crossover(self, i, keep_id):
-        parent1 = random.randint(0, keep_id)
-        while (parent2 := random.randint(0, keep_id)) == parent1:
+    def crossover(self, i):
+        parent_choice = []
+        for i in range(self.generation_size):
+            parent_choice += [i] * (self.generation_size-i)         
+
+        parent1 = random.choice(parent_choice)
+        while (parent2 := random.choice(parent_choice)) == parent1:
             pass
         
         for j in range(len(self.weights[i])):
@@ -181,18 +187,19 @@ class TetrisAgent():
         
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
         for i in range(keep_id+1, self.generation_size):
-            self.crossover(i, keep_id)
+            self.crossover(i)
 
-        logging.info(f"Weights after parenting: {self.weights}")
+        #logging.info(f"Weights after parenting: {self.weights}")
         for i in range(keep_id+1, self.generation_size):
-            if random.random() < i/self.generation_size:
+            if random.random()+0.1 < i/self.generation_size:
                 self.mutate(i)
 
-        logging.info(f"Weights after mutating: {self.weights}")
+        #logging.info(f"Weights after mutating: {self.weights}")
 
         self.generation_id += 1
-        self.current_id = 0
-        self.fitness = []
+        self.current_id = keep_id+1
+        self.fitness = self.fitness[:keep_id+1]
+        #print(self.fitness, "FITENS", keep_id)
 
 
     def start(self):
@@ -201,7 +208,6 @@ class TetrisAgent():
         while(1):
             
             self.state = self.tetrisApp.get_state()
-            #print(self.state, self.tetrisApp.actions)
             if self.state["gameover"] and not self.tetrisApp.actions:
                 self.current_run += 1
                 self.current_run_score_sum += self.state["score"]
@@ -211,7 +217,7 @@ class TetrisAgent():
                     self.current_id += 1
                     self.current_run = 0
                     self.current_run_score_sum = 0
-                    logging.info(self.fitness)
+                    logging.info(self.fitness[-1])
 
                 if self.current_id == self.generation_size:
                     self.create_next_generation()
