@@ -26,6 +26,14 @@ class TetrisAgent():
         self.fitness = []
         self.mutation_coefficient = 0.01
 
+        self.mutate_choice = []
+        for i in range(1, 9):
+            self.mutate_choice += [i] * (9 - i)
+
+        self.parent_choice = []
+        for i in range(self.generation_size):
+            self.parent_choice += [i] * (self.generation_size - i)
+
 
     def get_height_difference(self, board: np.ndarray, debug=False) -> int:
         """ Returns sum of absolute height differences between each neighbor column """
@@ -92,13 +100,13 @@ class TetrisAgent():
 
     def get_board_parameters(self, board, debug=False) -> np.ndarray:
         return np.array([
-            self.get_height_difference(board, debug),
-            self.get_total_height(board, debug),
-            self.get_number_of_holes(board, debug),
-            self.get_square_of_number_of_holes(board, debug),
-            self.get_number_of_columns_with_holes(board, debug),
-            self.get_max_height_difference(board, debug),
-            self.get_mul_hole_height_diff(board, debug),
+            self.get_height_difference(board, debug) / board.shape[0],
+            self.get_total_height(board, debug) / np.multiply(board.shape[0], board.shape[1]),
+            self.get_number_of_holes(board, debug) / np.multiply(board.shape[0], board.shape[1]),
+            self.get_square_of_number_of_holes(board, debug) / np.square(np.multiply(board.shape[0], board.shape[1])),
+            self.get_number_of_columns_with_holes(board, debug) / board.shape[1],
+            self.get_max_height_difference(board, debug) / board.shape[0],
+            self.get_mul_hole_height_diff(board, debug) / np.multiply(np.multiply(board.shape[0], board.shape[1]), board.shape[0]),
         ])
 
 
@@ -187,20 +195,21 @@ class TetrisAgent():
 
 
     def mutate(self, id):
-        how_many = random.randint(1, 5)
-        which = random.sample(range(0, 5), how_many)
+        # how_many = random.randint(1, 5)
+        how_many = random.choice(self.mutate_choice)
+        which = random.sample(range(0, 8), how_many)
 
         for idx in which:
             self.weights[id][idx] += np.random.normal() * (id*self.mutation_coefficient)
 
 
     def crossover(self, i):
-        parent_choice = []
-        for i in range(self.generation_size):
-            parent_choice += [i] * (self.generation_size-i)         
+        # parent_choice = []
+        # for i in range(self.generation_size):
+        #     parent_choice += [i] * (self.generation_size-i)
 
-        parent1 = random.choice(parent_choice)
-        while (parent2 := random.choice(parent_choice)) == parent1:
+        parent1 = random.choice(self.parent_choice)
+        while (parent2 := random.choice(self.parent_choice)) == parent1:
             pass
         
         for j in range(len(self.weights[i])):
