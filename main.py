@@ -1,8 +1,11 @@
-from typing import List, Tuple
+from typing import Tuple
 
 import logging
 import random
 import time
+
+from multiprocessing import Pool
+from scipy.special import expit
 
 import numpy as np
 
@@ -21,18 +24,22 @@ class TetrisAgent():
         self.current_run = 0
         self.current_run_score_sum = 0
         self.runs_per_chromosome = 3
-        self.weights = (np.random.rand(self.generation_size, 8) - 0.5)
-        #self.weights[0] = [1.38049889,-3.1927763,9.43484846,0.00224655,-2.98497962]
-        self.fitness = []
-        self.mutation_coefficient = 0.01
 
+        # 5x5x1 neural network
+        self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
+        self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
+
+        self.mutation_coefficient = 0.5
         self.mutate_choice = []
-        for i in range(1, 9):
-            self.mutate_choice += [i] * (9 - i)
+        for i in range(self.weights_layer0.shape[1]):
+            for j in range(self.weights_layer0.shape[2]):
+                self.mutate_choice.append((0, i, j))
+        for i in range(self.weights_layer1.shape[1]):
+            for j in range(self.weights_layer1.shape[2]):
+                self.mutate_choice.append((1, i, j))
 
-        self.parent_choice = []
-        for i in range(self.generation_size):
-            self.parent_choice += [i] * (self.generation_size - i)
+        self.parent_choice = [i for i in range(np.ceil(0.2*self.generation_size).astype(int)+1)]
+        self.fitness = []
 
 
     def get_height_difference(self, board: np.ndarray, debug=False) -> int:
@@ -103,10 +110,10 @@ class TetrisAgent():
             self.get_height_difference(board, debug) / board.shape[0],
             self.get_total_height(board, debug) / np.multiply(board.shape[0], board.shape[1]),
             self.get_number_of_holes(board, debug) / np.multiply(board.shape[0], board.shape[1]),
-            self.get_square_of_number_of_holes(board, debug) / np.square(np.multiply(board.shape[0], board.shape[1])),
-            self.get_number_of_columns_with_holes(board, debug) / board.shape[1],
+            #self.get_square_of_number_of_holes(board, debug) / np.square(np.multiply(board.shape[0], board.shape[1])),
+            #self.get_number_of_columns_with_holes(board, debug) / board.shape[1],
             self.get_max_height_difference(board, debug) / board.shape[0],
-            self.get_mul_hole_height_diff(board, debug) / np.multiply(np.multiply(board.shape[0], board.shape[1]), board.shape[0]),
+            #self.get_mul_hole_height_diff(board, debug) / np.multiply(np.multiply(board.shape[0], board.shape[1]), board.shape[0]),
         ])
 
 
@@ -162,9 +169,10 @@ class TetrisAgent():
 
         rows_cleared = self.clean_board(board)
         input_layer = self.get_board_parameters(board)
-        input_layer = np.append(input_layer, [rows_cleared*100])
-        
-        return np.matmul(input_layer, self.weights[self.current_id])
+        input_layer = np.append(input_layer, np.array([rows_cleared]))
+        middle_layer = expit(np.matmul(self.weights_layer0[self.current_id], input_layer)) # expit = sigmoid
+        output_layer = np.matmul(self.weights_layer1[self.current_id], middle_layer)
+        return output_layer
 
     def find_optimal_move(self) -> Tuple[int, int]:
         min_value = 1e9
@@ -195,55 +203,72 @@ class TetrisAgent():
 
 
     def mutate(self, id):
-        # how_many = random.randint(1, 5)
-        how_many = random.choice(self.mutate_choice)
-        which = random.sample(range(0, 8), how_many)
+        how_many = random.randint(1, 5)
+        which = random.sample(self.mutate_choice, how_many)
 
-        for idx in which:
-            self.weights[id][idx] += np.random.normal() * (id*self.mutation_coefficient)
+        for i, j, k in which:
+            if i == 0:
+                self.weights_layer0[id][j][k] += np.random.normal() * self.mutation_coefficient
+            elif i == 1:
+                self.weights_layer1[id][j][k] += np.random.normal() * self.mutation_coefficient
 
 
     def crossover(self, i):
-        # parent_choice = []
-        # for i in range(self.generation_size):
-        #     parent_choice += [i] * (self.generation_size-i)
-
+        """Simulated binary crossover (SBX), creates two children from two parents"""
         parent1 = random.choice(self.parent_choice)
         while (parent2 := random.choice(self.parent_choice)) == parent1:
             pass
         
-        for j in range(len(self.weights[i])):
-            if random.random() < 0.5:
-                self.weights[i][j] = self.weights[parent1][j]
-            else:
-                self.weights[i][j] = self.weights[parent2][j]
+        randfloat = random.random()
+        gamma = 0
+        if randfloat <= 0.5:
+            gamma = np.sqrt(randfloat*2)
+        else:
+            gamma = np.sqrt(1/(2*(1-randfloat)))
+
+
+        self.weights_layer0[i] = 0.5*((1+gamma)*self.weights_layer0[parent1] + (1-gamma)*self.weights_layer0[parent2])
+        self.weights_layer1[i] = 0.5*((1+gamma)*self.weights_layer1[parent1] + (1-gamma)*self.weights_layer1[parent2])
+
+        if i + 1 < self.generation_size:
+            self.weights_layer0[i+1] = 0.5*((1-gamma)*self.weights_layer0[parent1] + (1+gamma)*self.weights_layer0[parent2])
+            self.weights_layer1[i+1] = 0.5*((1-gamma)*self.weights_layer1[parent1] + (1+gamma)*self.weights_layer1[parent2])
+
 
     def create_next_generation(self):
         self.fitness = sorted(self.fitness, reverse=True)
         logging.info(f"\n\n\nGeneration: {self.generation_id}")
         logging.info(f"Best fitness: {self.best_fitness}")
-        weights = self.weights
-        for i in range(len(self.weights)):
-            weights[i] = self.weights[self.fitness[i][1]]
-        self.weights = weights
-        logging.info(self.weights)
+
+        weights_layer0 = np.copy(self.weights_layer0)
+        weights_layer1 = np.copy(self.weights_layer1)
+        for i in range(self.generation_size):
+            weights_layer0[i] = self.weights_layer0[self.fitness[i][1]]
+            weights_layer1[i] = self.weights_layer1[self.fitness[i][1]]
+        
+        self.weights_layer0 = weights_layer0
+        self.weights_layer1 = weights_layer1
+        
+        logging.info(weights_layer0)
+        logging.info(weights_layer1)
         logging.info(self.fitness)
         
+
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
-        for i in range(keep_id+1, self.generation_size):
+        
+        for i in range(keep_id+1, self.generation_size, 2):
             self.crossover(i)
 
-        #logging.info(f"Weights after parenting: {self.weights}")
         for i in range(keep_id+1, self.generation_size):
-            if random.random()+0.1 < i/self.generation_size:
+            if random.random() < i/self.generation_size:
                 self.mutate(i)
 
-        #logging.info(f"Weights after mutating: {self.weights}")
 
         self.generation_id += 1
         self.current_id = keep_id+1
         self.fitness = self.fitness[:keep_id+1]
-        #print(self.fitness, "FITENS", keep_id)
+        self.mutation_coefficient *= 0.96
+        logging.info(f"Mutation coefficient {self.mutation_coefficient}")
 
 
     def start(self):
