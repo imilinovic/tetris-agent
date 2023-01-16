@@ -248,11 +248,9 @@ class TetrisAgent():
         
         self.weights_layer0 = weights_layer0
         self.weights_layer1 = weights_layer1
-        
-        logging.info(repr(weights_layer0))
-        logging.info(repr(weights_layer1))
-        logging.info(repr(self.fitness))
-        
+
+        np.savez_compressed(f"weights_gen_{self.generation_id}", self.weights_layer0, self.weights_layer1)  
+        logging.info(self.fitness)
 
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
         
