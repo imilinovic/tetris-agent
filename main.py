@@ -238,7 +238,7 @@ class TetrisAgent():
     def create_next_generation(self):
         self.fitness = sorted(self.fitness, reverse=True)
         logging.info(f"\n\n\nGeneration: {self.generation_id}")
-        logging.info(f"Best fitness: {self.best_fitness}")
+        logging.info(f"Best fitness: {repr(self.best_fitness)}")
 
         weights_layer0 = np.copy(self.weights_layer0)
         weights_layer1 = np.copy(self.weights_layer1)
@@ -249,9 +249,9 @@ class TetrisAgent():
         self.weights_layer0 = weights_layer0
         self.weights_layer1 = weights_layer1
         
-        logging.info(weights_layer0)
-        logging.info(weights_layer1)
-        logging.info(self.fitness)
+        logging.info(repr(weights_layer0))
+        logging.info(repr(weights_layer1))
+        logging.info(repr(self.fitness))
         
 
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
@@ -267,8 +267,11 @@ class TetrisAgent():
         self.generation_id += 1
         self.current_id = keep_id+1
         self.fitness = self.fitness[:keep_id+1]
-        self.mutation_coefficient *= 0.96
-        logging.info(f"Mutation coefficient {self.mutation_coefficient}")
+        if self.mutation_coefficient > 0.01:
+            self.mutation_coefficient *= 0.9
+        else:
+            self.mutation_coefficient *= 0.99
+        logging.info(f"Mutation coefficient {repr(self.mutation_coefficient)}")
 
 
     def start(self):
@@ -282,9 +285,10 @@ class TetrisAgent():
                 self.current_run_score_sum += self.state["score"]
 
                 if self.current_run == self.runs_per_chromosome:
-                    self.fitness.append((self.current_run_score_sum/self.runs_per_chromosome, self.current_id))
-                    if self.current_run_score_sum/self.runs_per_chromosome > self.best_fitness:
-                        self.best_fitness = self.current_run_score_sum/self.runs_per_chromosome
+                    fitness = np.round(self.current_run_score_sum/self.runs_per_chromosome, decimals=2)
+                    self.fitness.append((fitness, self.current_id))
+                    if fitness > self.best_fitness:
+                        self.best_fitness = fitness
                     self.current_id += 1
                     self.current_run = 0
                     self.current_run_score_sum = 0
@@ -302,7 +306,14 @@ class TetrisAgent():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler("logs.log"),
+            logging.StreamHandler()
+        ]
+    )
     app = TetrisAppNoGUI()
     agent = TetrisAgent(app)
     agent.start()
