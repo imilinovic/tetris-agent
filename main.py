@@ -29,7 +29,13 @@ class TetrisAgent():
         self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
         self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
 
+        #tmp = np.load("weights_gen_20.npz")
+        #self.weights_layer0 = tmp['arr_0']
+        #self.weights_layer1 = tmp['arr_1']
+
+        
         self.mutation_coefficient = 0.5
+        #self.mutation_coefficient = 0.12709329141645007
         self.mutate_choice = []
         for i in range(self.weights_layer0.shape[1]):
             for j in range(self.weights_layer0.shape[2]):
@@ -235,7 +241,7 @@ class TetrisAgent():
             self.weights_layer1[i+1] = 0.5*((1-gamma)*self.weights_layer1[parent1] + (1+gamma)*self.weights_layer1[parent2])
 
 
-    def create_next_generation(self):
+    def create_next_generation(self):       
         self.fitness = sorted(self.fitness, reverse=True)
         logging.info(f"\n\n\nGeneration: {self.generation_id}")
         logging.info(f"Best fitness: {repr(self.best_fitness)}")
@@ -253,15 +259,16 @@ class TetrisAgent():
         logging.info(self.fitness)
 
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
-        
+        for i in range(keep_id+1):
+            self.fitness[i] = (self.fitness[i][0], i)
+
         for i in range(keep_id+1, self.generation_size, 2):
             self.crossover(i)
 
         for i in range(keep_id+1, self.generation_size):
             if random.random() < i/self.generation_size:
                 self.mutate(i)
-
-
+        
         self.generation_id += 1
         self.current_id = keep_id+1
         self.fitness = self.fitness[:keep_id+1]
