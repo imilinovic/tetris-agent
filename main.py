@@ -43,10 +43,10 @@ class TetrisAgent():
             for j in range(self.weights_layer1.shape[2]):
                 self.mutate_choice.append((1, i, j))
 
-        self.how_many = [[i]*(5-i+1) for i in range(1, 6)]
+        self.how_many = [i for i in range(1, 6) for j in range((6-i))]
         self.parent_choice = [i for i in range(np.ceil(0.2*self.generation_size).astype(int)+1)]
         self.fitness = []
-
+        
 
     def get_height_difference(self, board: np.ndarray, debug=False) -> int:
         """ Returns sum of absolute height differences between each neighbor column """
