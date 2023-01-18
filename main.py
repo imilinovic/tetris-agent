@@ -3,8 +3,8 @@ from typing import Tuple
 import logging
 import random
 import time
+import argparse
 
-from multiprocessing import Pool
 from scipy.special import expit
 
 import numpy as np
@@ -14,7 +14,7 @@ from tetris_app import TetrisApp, rotate_clockwise, check_collision
 from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
-    def __init__(self, tetrisApp: TetrisApp, ):
+    def __init__(self, tetrisApp: TetrisApp, load: str):
         np.set_printoptions(suppress=True)
         self.tetrisApp = tetrisApp
         self.generation_id = 1
@@ -26,16 +26,15 @@ class TetrisAgent():
         self.runs_per_chromosome = 3
 
         # 5x5x1 neural network
-        self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
-        self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
+        if load:
+            tmp = np.load(load)
+            self.weights_layer0 = tmp['arr_0']
+            self.weights_layer1 = tmp['arr_1']
+        else:
+            self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
+            self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
 
-        #tmp = np.load("weights_gen_20.npz")
-        #self.weights_layer0 = tmp['arr_0']
-        #self.weights_layer1 = tmp['arr_1']
-
-        
         self.mutation_coefficient = 0.5
-        #self.mutation_coefficient = 0.12709329141645007
         self.mutate_choice = []
         for i in range(self.weights_layer0.shape[1]):
             for j in range(self.weights_layer0.shape[2]):
@@ -319,6 +318,24 @@ if __name__ == '__main__':
             logging.StreamHandler()
         ]
     )
-    app = TetrisAppNoGUI()
-    agent = TetrisAgent(app)
+
+    parser = argparse.ArgumentParser(
+        description="Agent that learns to play tetris with genetic algorithms & neural network"
+    )
+    parser.add_argument(
+        "--load",
+        default="",
+        type=str,
+        help="Load weights from file, use .npz file produced by the program, otherwise start from scratch",
+    )
+    parser.add_argument(
+        "--gui", 
+        action="store_true", 
+        help="Use tetris with GUI (don't use for training)"
+    )
+
+    args = parser.parse_args()
+
+    app = (TetrisApp() if args.gui else TetrisAppNoGUI())
+    agent = TetrisAgent(app, args.load)
     agent.start()
