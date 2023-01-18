@@ -14,7 +14,7 @@ from tetris_app import TetrisApp, rotate_clockwise, check_collision
 from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
-    def __init__(self, tetrisApp: TetrisApp, load: str):
+    def __init__(self, tetrisApp: TetrisApp, load: str, mutation_coefficient: float):
         np.set_printoptions(suppress=True)
         self.tetrisApp = tetrisApp
         self.generation_id = 1
@@ -34,7 +34,7 @@ class TetrisAgent():
             self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
             self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
 
-        self.mutation_coefficient = 0.5
+        self.mutation_coefficient = mutation_coefficient
         self.mutate_choice = []
         for i in range(self.weights_layer0.shape[1]):
             for j in range(self.weights_layer0.shape[2]):
@@ -43,6 +43,7 @@ class TetrisAgent():
             for j in range(self.weights_layer1.shape[2]):
                 self.mutate_choice.append((1, i, j))
 
+        self.how_many = [[i]*(5-i+1) for i in range(1, 6)]
         self.parent_choice = [i for i in range(np.ceil(0.2*self.generation_size).astype(int)+1)]
         self.fitness = []
 
@@ -208,7 +209,7 @@ class TetrisAgent():
 
 
     def mutate(self, id):
-        how_many = random.randint(1, 5)
+        how_many = random.choice(self.how_many)
         which = random.sample(self.mutate_choice, how_many)
 
         for i, j, k in which:
@@ -333,9 +334,15 @@ if __name__ == '__main__':
         action="store_true", 
         help="Use tetris with GUI (don't use for training)"
     )
+    parser.add_argument(
+        "--mutation-coefficient",
+        default=0.5,
+        type=float,
+        help="Set starting mutation coefficient, default=0.5",
+    )
 
     args = parser.parse_args()
 
     app = (TetrisApp() if args.gui else TetrisAppNoGUI())
-    agent = TetrisAgent(app, args.load)
+    agent = TetrisAgent(app, args.load, args.mutation_coefficient)
     agent.start()
