@@ -242,8 +242,6 @@ class TetrisAgent():
 
     def create_next_generation(self):       
         self.fitness = sorted(self.fitness, reverse=True)
-        logging.info(f"\n\n\nGeneration: {self.generation_id}")
-        logging.info(f"Best fitness: {repr(self.best_fitness)}")
 
         weights_layer0 = np.copy(self.weights_layer0)
         weights_layer1 = np.copy(self.weights_layer1)
@@ -254,8 +252,12 @@ class TetrisAgent():
         self.weights_layer0 = weights_layer0
         self.weights_layer1 = weights_layer1
 
-        np.savez_compressed(f"weights_gen_{self.generation_id}", self.weights_layer0, self.weights_layer1)  
-        logging.info(self.fitness)
+        np.savez_compressed(f"weights_gen_{self.generation_id}", self.weights_layer0, self.weights_layer1)
+
+        self.generation_id += 1
+        logging.info(f"\n\n\nGeneration: {self.generation_id}")
+        logging.info(f"Best fitness: {repr(self.best_fitness)}")
+        logging.info(f"{self.fitness}\n")
 
         keep_id = np.ceil(0.2*self.generation_size).astype(int)
         for i in range(keep_id+1):
@@ -265,16 +267,15 @@ class TetrisAgent():
             self.crossover(i)
 
         for i in range(keep_id+1, self.generation_size):
-            # if random.random() < i/self.generation_size:
             self.mutate(i)
-        
-        self.generation_id += 1
+
         self.current_id = keep_id+1
         self.fitness = self.fitness[:keep_id+1]
 
 
     def start(self):
         self.tetrisApp.init()
+        logging.info(f"\n\n\nGeneration: {self.generation_id}")
 
         while(1):
             
