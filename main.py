@@ -14,7 +14,7 @@ from tetris_app import TetrisApp, rotate_clockwise, check_collision
 from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
-    def __init__(self, tetrisApp: TetrisApp, load: str, mutation_coefficient: float):
+    def __init__(self, tetrisApp: TetrisApp, load: str):
         np.set_printoptions(suppress=True)
         self.tetrisApp = tetrisApp
         self.generation_id = 1
@@ -34,7 +34,6 @@ class TetrisAgent():
             self.weights_layer0 = (np.random.rand(self.generation_size, 5, 5) - 0.5) # 5x5
             self.weights_layer1 = (np.random.rand(self.generation_size, 1, 5) - 0.5) # 5x1
 
-        self.mutation_coefficient = mutation_coefficient
         self.mutate_choice = []
         for i in range(self.weights_layer0.shape[1]):
             for j in range(self.weights_layer0.shape[2]):
@@ -42,6 +41,8 @@ class TetrisAgent():
         for i in range(self.weights_layer1.shape[1]):
             for j in range(self.weights_layer1.shape[2]):
                 self.mutate_choice.append((1, i, j))
+        self.mutation_rate = 0.05
+        self.mutation_step = 0.2
 
         self.how_many = [i for i in range(1, 6) for j in range((6-i))]
         self.parent_choice = [i for i in range(np.ceil(0.2*self.generation_size).astype(int)+1)]
@@ -209,14 +210,12 @@ class TetrisAgent():
 
 
     def mutate(self, id):
-        how_many = random.choice(self.how_many)
-        which = random.sample(self.mutate_choice, how_many)
-
-        for i, j, k in which:
-            if i == 0:
-                self.weights_layer0[id][j][k] += np.random.normal() * self.mutation_coefficient
-            elif i == 1:
-                self.weights_layer1[id][j][k] += np.random.normal() * self.mutation_coefficient
+        for i, j, k in self.mutate_choice:
+            if np.random.random() < self.mutation_rate:
+                if i == 0:
+                    self.weights_layer0[id][j][k] += np.random.random() * self.mutation_step * 2 - self.mutation_step
+                elif i == 1:
+                    self.weights_layer1[id][j][k] += np.random.random() * self.mutation_step * 2 - self.mutation_step
 
 
     def crossover(self, i):
@@ -266,17 +265,12 @@ class TetrisAgent():
             self.crossover(i)
 
         for i in range(keep_id+1, self.generation_size):
-            if random.random() < i/self.generation_size:
-                self.mutate(i)
+            # if random.random() < i/self.generation_size:
+            self.mutate(i)
         
         self.generation_id += 1
         self.current_id = keep_id+1
         self.fitness = self.fitness[:keep_id+1]
-        if self.mutation_coefficient > 0.01:
-            self.mutation_coefficient *= 0.9
-        else:
-            self.mutation_coefficient *= 0.99
-        logging.info(f"Mutation coefficient {repr(self.mutation_coefficient)}")
 
 
     def start(self):
@@ -344,5 +338,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     app = (TetrisApp() if args.gui else TetrisAppNoGUI())
-    agent = TetrisAgent(app, args.load, args.mutation_coefficient)
+    agent = TetrisAgent(app, args.load)
     agent.start()
