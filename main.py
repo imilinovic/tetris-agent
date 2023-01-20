@@ -19,7 +19,7 @@ class TetrisAgent():
         self.tetrisApp = tetrisApp
         self.generation_id = 1
         self.generation_size = 50
-        self.best_fitness = 0
+        self.best_fitness = (0, self.generation_id)
         self.current_id = 0
         self.current_run = 0
         self.current_run_score_sum = 0
@@ -256,21 +256,29 @@ class TetrisAgent():
 
         self.generation_id += 1
         logging.info(f"\n\n\nGeneration: {self.generation_id}")
-        logging.info(f"Best fitness: {repr(self.best_fitness)}")
+        logging.info(f"Best fitness: {repr(self.best_fitness[0])} in generation {repr(self.best_fitness[1])}")
         logging.info(f"{self.fitness}\n")
 
-        keep_id = np.ceil(0.2*self.generation_size).astype(int)
-        for i in range(keep_id+1):
+        keep_id = np.ceil(0.2 * self.generation_size).astype(int)
+        for i in range(keep_id + 1):
             self.fitness[i] = (self.fitness[i][0], i)
 
-        for i in range(keep_id+1, self.generation_size, 2):
-            self.crossover(i)
+        if self.generation_id - self.best_fitness[1] >= 30:
+            logging.info("No change in best fitness for 30 generations, new weight layer values")
+            self.weights_layer0[3:] = (np.random.rand(self.generation_size-3, 5, 5) - 0.5)  # 5x5
+            self.weights_layer1[3:] = (np.random.rand(self.generation_size-3, 1, 5) - 0.5)  # 5x1
+            self.current_id = 3
 
-        for i in range(keep_id+1, self.generation_size):
-            self.mutate(i)
 
-        self.current_id = keep_id+1
-        self.fitness = self.fitness[:keep_id+1]
+        else:
+            for i in range(keep_id+1, self.generation_size, 2):
+                self.crossover(i)
+
+            for i in range(keep_id+1, self.generation_size):
+                self.mutate(i)
+
+            self.current_id = keep_id+1
+            self.fitness = self.fitness[:keep_id+1]
 
 
     def start(self):
@@ -287,8 +295,8 @@ class TetrisAgent():
                 if self.current_run == self.runs_per_chromosome:
                     fitness = np.round(self.current_run_score_sum/self.runs_per_chromosome, decimals=2)
                     self.fitness.append((fitness, self.current_id))
-                    if fitness > self.best_fitness:
-                        self.best_fitness = fitness
+                    if fitness > self.best_fitness[0]:
+                        self.best_fitness = (fitness, self.generation_id)
                     self.current_id += 1
                     self.current_run = 0
                     self.current_run_score_sum = 0
