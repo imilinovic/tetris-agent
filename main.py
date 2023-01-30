@@ -14,7 +14,7 @@ from tetris_app import TetrisApp, rotate_clockwise, check_collision
 from tetris_app_no_gui import TetrisAppNoGUI
 
 class TetrisAgent():
-    def __init__(self, tetrisApp: TetrisApp, load: str):
+    def __init__(self, tetrisApp: TetrisApp, load: str, mutation_step: float):
         np.set_printoptions(suppress=True)
         self.tetrisApp = tetrisApp
         self.generation_id = 1
@@ -24,6 +24,7 @@ class TetrisAgent():
         self.current_run = 0
         self.current_run_score_sum = 0
         self.runs_per_chromosome = 3
+        self.mutation_step = mutation_step
 
         # 5x5x1 neural network
         if load:
@@ -152,7 +153,7 @@ class TetrisAgent():
             for j in range(stone.shape[1]):
                 if stone[i][j]:
                     board[start_height + i][column + j] = stone[i][j]
-
+        
         return board
 
 
@@ -213,9 +214,9 @@ class TetrisAgent():
         for i, j, k in self.mutate_choice:
             if np.random.random() < self.mutation_rate:
                 if i == 0:
-                    self.weights_layer0[id][j][k] += np.random.random() * self.mutation_step * 2 - self.mutation_step
+                    self.weights_layer0[id][j][k] += np.random.normal() * self.mutation_step
                 elif i == 1:
-                    self.weights_layer1[id][j][k] += np.random.random() * self.mutation_step * 2 - self.mutation_step
+                    self.weights_layer1[id][j][k] += np.random.normal() * self.mutation_step
 
 
     def crossover(self, i):
@@ -268,8 +269,8 @@ class TetrisAgent():
             self.weights_layer0[3:] = (np.random.rand(self.generation_size-3, 5, 5) - 0.5)  # 5x5
             self.weights_layer1[3:] = (np.random.rand(self.generation_size-3, 1, 5) - 0.5)  # 5x1
             self.current_id = 3
-
-
+            self.mutation_step = 0.2
+            self.best_fitness = (self.best_fitness[0], self.generation_id)
         else:
             for i in range(keep_id+1, self.generation_size, 2):
                 self.crossover(i)
@@ -279,6 +280,14 @@ class TetrisAgent():
 
             self.current_id = keep_id+1
             self.fitness = self.fitness[:keep_id+1]
+
+
+        if self.generation_id % 10 == 0:
+            if self.mutation_step < 0.1:
+                self.mutation_step *= 0.95
+            else:
+                self.mutation_step *= 0.9
+            logging.info(f"New mutation step: {self.mutation_step}")
 
 
     def start(self):
@@ -338,14 +347,14 @@ if __name__ == '__main__':
         help="Use tetris with GUI (don't use for training)"
     )
     parser.add_argument(
-        "--mutation-coefficient",
-        default=0.5,
+        "--mutation-step",
+        default=0.2,
         type=float,
-        help="Set starting mutation coefficient, default=0.5",
+        help="Set starting mutation step, default=0.2",
     )
 
     args = parser.parse_args()
 
     app = (TetrisApp() if args.gui else TetrisAppNoGUI())
-    agent = TetrisAgent(app, args.load)
+    agent = TetrisAgent(app, args.load, args.mutation_step)
     agent.start()
